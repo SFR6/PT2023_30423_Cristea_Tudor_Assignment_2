@@ -165,6 +165,12 @@ public class MainController
                     mainView.showErrorMessage("For Service Times: " + exception.getMessage());
                 }
 
+                if (maximumArrivalTime >= simulationTime)
+                {
+                    error = true;
+                    mainView.showErrorMessage("Maximum Arrival Time needs to be smaller than the simulation time");
+                }
+
                 if (!error)
                 {
                     SelectionPolicy selectionPolicy;
