@@ -65,6 +65,7 @@ public class MainView extends JFrame
 
     private JTextField numberOfClientsTextField;
     private JTextField numberOfQueuesTextField;
+    private JTextField queueSizeTextField;
     private JTextField simulationTimeTextField;
     private JTextField minimumArrivalTimeTextField;
     private JTextField maximumArrivalTimeTextField;
@@ -83,7 +84,7 @@ public class MainView extends JFrame
         this.getContentPane().setBackground(new Color(216, 191, 216));
         this.setBounds(100, 100, 880, 500);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        this.getContentPane().setLayout(new GridLayout(10, 2, 10, 10));
+        this.getContentPane().setLayout(new GridLayout(11, 2, 10, 10));
 
         JLabel titleLabel = new JLabel("Queue Simulator");
         titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
@@ -112,6 +113,17 @@ public class MainView extends JFrame
         numberOfQueuesTextField.setFont(new Font("Tahoma", Font.PLAIN, 20));
         numberOfQueuesTextField.setColumns(10);
         this.getContentPane().add(numberOfQueuesTextField);
+        
+        JLabel queueSizeLabel = new JLabel("Queue Size:");
+        queueSizeLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        queueSizeLabel.setFont(new Font("Tahoma", Font.PLAIN, 20));
+        this.getContentPane().add(queueSizeLabel);
+
+        queueSizeTextField = new JTextField();
+        queueSizeTextField.setFont(new Font("Tahoma", Font.PLAIN, 20));
+        queueSizeTextField.setColumns(10);
+        this.getContentPane().add(queueSizeTextField);
+
 
         JLabel simulationTimeLabel = new JLabel("Simulation Time:");
         simulationTimeLabel.setHorizontalAlignment(SwingConstants.CENTER);
@@ -210,6 +222,16 @@ public class MainView extends JFrame
     public void setNumberOfQueuesTextField(JTextField numberOfQueuesTextField)
     {
         this.numberOfQueuesTextField = numberOfQueuesTextField;
+    }
+
+    public JTextField getQueueSizeTextField()
+    {
+        return queueSizeTextField;
+    }
+
+    public void setQueueSizeTextField(JTextField queueSizeTextField)
+    {
+        this.queueSizeTextField = queueSizeTextField;
     }
 
     public JTextField getSimulationTimeTextField()

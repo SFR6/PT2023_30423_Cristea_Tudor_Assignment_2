@@ -65,15 +65,18 @@ public class Server implements Runnable
 
                 try
                 {
-                    Thread.sleep(currentClient.getServiceTime() * 1000L - 50);
+                    Thread.sleep(950);
                 }
                 catch (InterruptedException e)
                 {
                     throw new RuntimeException(e);
                 }
 
-                clients.remove(currentClient);
-                waitingPeriod.set(waitingPeriod.get() - currentClient.getServiceTime());
+                if (currentClient.getServiceTime() == 0)
+                {
+                    clients.remove(currentClient);
+                    waitingPeriod.set(waitingPeriod.get() - currentClient.getServiceTime());
+                }
             }
         }
     }

@@ -18,6 +18,7 @@ public class SimulationManager implements Runnable
 
     private int numberOfClients;
     private int numberOfQueues;
+    private int queueSize;
     private int simulationTime;
     private int minimumArrivalTime;
     private int maximumArrivalTime;
@@ -28,14 +29,16 @@ public class SimulationManager implements Runnable
     private SimulationView simulationView;
     private WindowListener windowListener;
     private List<Client> generatedClientsList;
-    //private List<Client> processingClientsList;
 
-    public SimulationManager(SimulationView simulationView, int numberOfClients, int numberOfQueues, int simulationTime, int minimumArrivalTime, int maximumArrivalTime, int minimumServiceTime, int maximumServiceTime, SelectionPolicy selectionPolicy)
+    private volatile boolean interrupted;
+
+    public SimulationManager(SimulationView simulationView, int numberOfClients, int numberOfQueues, int queueSize, int simulationTime, int minimumArrivalTime, int maximumArrivalTime, int minimumServiceTime, int maximumServiceTime, SelectionPolicy selectionPolicy)
     {
         this.simulationView = simulationView;
 
         this.numberOfClients = numberOfClients;
         this.numberOfQueues = numberOfQueues;
+        this.queueSize = queueSize;
         this.simulationTime = simulationTime;
         this.minimumArrivalTime = minimumArrivalTime;
         this.maximumArrivalTime = maximumArrivalTime;
@@ -71,7 +74,6 @@ public class SimulationManager implements Runnable
         };
 
         this.generatedClientsList = new ArrayList<>();
-        //this.processingClientsList = new ArrayList<>();
 
         Strategy strategy;
         if (selectionPolicy == SelectionPolicy.SHORTEST_QUEUE)
@@ -82,7 +84,7 @@ public class SimulationManager implements Runnable
         {
             strategy = new ShortestTimeStrategy();
         }
-        this.scheduler = new Scheduler(this.numberOfQueues, 1, strategy);
+        this.scheduler = new Scheduler(this.numberOfQueues, queueSize, strategy);
         generateRandomClients();
     }
 
@@ -107,6 +109,16 @@ public class SimulationManager implements Runnable
         });
     }
 
+    public boolean getInterrupted()
+    {
+        return interrupted;
+    }
+
+    public void setInterrupted(boolean interrupted)
+    {
+        this.interrupted = interrupted;
+    }
+
     @Override
     public void run()
     {
@@ -120,33 +132,41 @@ public class SimulationManager implements Runnable
             simulationView.showErrorMessage("Unexpected error occurred when interacting with the log text file");
         }
 
+        Set<Client> existingClients = new HashSet<>();
         int averageWaitingTime = 0;
+        int averageWaitingTime2 = 0;
         int averageServiceTime = 0;
         int peakHour = 0;
         int peakCapacity = Integer.MIN_VALUE;
         int currentTime = 0;
+        int currentTime2 = 0;
         boolean prematureFinish;
         do
         {
             prematureFinish = true;
 
+            int currentCapacity = 0;
             List<Client> removedClients = new ArrayList<>();
             for (Client client: generatedClientsList)
             {
                 prematureFinish = false;
                 if (client.getArrivalTime() <= currentTime)
                 {
+                    existingClients.add(client);
                     if (scheduler.dispatchClient(client))
                     {
                         averageWaitingTime += (currentTime - client.getArrivalTime());
                         removedClients.add(client);
+                    }
+                    else
+                    {
+                        ++currentCapacity;
                     }
                 }
             }
             if (!removedClients.isEmpty())
             {
                 generatedClientsList.removeAll(removedClients);
-                //processingClientsList.addAll(removedClients);
             }
 
             try
@@ -175,7 +195,6 @@ public class SimulationManager implements Runnable
                     simulationView.getClientsLabel().setForeground(new Color(178, 75, 75));
                 }
 
-                int currentCapacity = 0;
                 int i = 0;
                 for (Server server: scheduler.getServerList())
                 {
@@ -189,31 +208,19 @@ public class SimulationManager implements Runnable
                     }
                     else
                     {
+                        averageWaitingTime2 += server.getWaitingPeriod().get();
                         prematureFinish = false;
                         String labelText = "";
+                        Client currentClient = server.getClients().peek();
                         for (Client client: server.getClients())
                         {
-/*                            Client correctClient = null;
-                            for (Client client2: processingClientsList)
+                            fileWriter.write("(" + client.getId() + "," + client.getArrivalTime() + "," + client.getServiceTime() + "); ");
+                            labelText += "(" + client.getId() + "," + client.getArrivalTime() + "," + client.getServiceTime() + "); ";
+                            if (client == currentClient)
                             {
-                                if (client.getId() == client2.getId())
-                                {
-                                    correctClient = client2;
-                                }
-                            }
-                            if (correctClient != null)
-                            {*/
-                                fileWriter.write("(" + client.getId() + "," + client.getArrivalTime() + "," + client.getServiceTime() + "); ");
-                                labelText += "(" + client.getId() + "," + client.getArrivalTime() + "," + client.getServiceTime() + "); ";
-                                //correctClient.setServiceTime(correctClient.getServiceTime() - 1);
                                 client.setServiceTime(client.getServiceTime() - 1);
                                 averageServiceTime += 1;
-
-/*                                if (correctClient.getServiceTime() == 0)
-                                {
-                                    processingClientsList.remove(correctClient);
-                                }
-                            }*/
+                            }
                         }
                         simulationView.getQueueLabelList2().get(i - 1).setText(labelText);
                     }
@@ -227,6 +234,7 @@ public class SimulationManager implements Runnable
                         simulationView.getQueueLabelList().get(i - 1).setForeground(new Color(88, 164, 110));
                     }
                 }
+                averageWaitingTime2 /= scheduler.getServerList().size();
 
                 if (currentCapacity > peakCapacity)
                 {
@@ -249,8 +257,9 @@ public class SimulationManager implements Runnable
                 simulationView.showErrorMessage("Unexpected error occurred when pausing the MAIN thread");
             }
 
-            if (prematureFinish)
+            if (prematureFinish || interrupted)
             {
+                currentTime2 = currentTime;
                 currentTime = simulationTime + 1;
             }
 
@@ -258,20 +267,34 @@ public class SimulationManager implements Runnable
 
         scheduler.getServerList().get(0).setGo(false); // stopping all servers
 
-        averageWaitingTime /= (numberOfClients - generatedClientsList.size());
-        averageServiceTime /= (numberOfClients - generatedClientsList.size());
-        ResultsView resultsView = new ResultsView(averageWaitingTime, averageServiceTime, peakHour, windowListener);
+        if (!interrupted)
+        {
+            if (currentTime2 == 0)
+            {
+                currentTime2 = simulationTime;
+            }
+            for (Client client: generatedClientsList)
+            {
+                averageWaitingTime += (currentTime2 - client.getArrivalTime());
+            }
 
-        try
-        {
-            fileWriter.write("\n\nResults\n");
-            fileWriter.write("Average Waiting Time: " + averageWaitingTime + '\n');
-            fileWriter.write("Average Service Time: " + averageServiceTime + '\n');
-            fileWriter.write("Peak Hour: " + peakHour);
-        }
-        catch (IOException e)
-        {
-            simulationView.showErrorMessage("Unexpected error occurred when writing in the log text file");
+            averageWaitingTime /= existingClients.size();
+            averageWaitingTime2 /= currentTime2;
+            averageServiceTime /= existingClients.size();
+
+            ResultsView resultsView = new ResultsView(averageWaitingTime + averageWaitingTime2, averageServiceTime, peakHour, windowListener);
+
+            try
+            {
+                fileWriter.write("\n\nResults\n");
+                fileWriter.write("Average Waiting Time: " + (averageWaitingTime + averageWaitingTime2) + '\n');
+                fileWriter.write("Average Service Time: " + averageServiceTime + '\n');
+                fileWriter.write("Peak Hour: " + peakHour);
+            }
+            catch (IOException e)
+            {
+                simulationView.showErrorMessage("Unexpected error occurred when writing in the log text file");
+            }
         }
 
         try
